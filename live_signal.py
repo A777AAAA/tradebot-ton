@@ -524,11 +524,23 @@ def calc_indicators_4h(df4h: pd.DataFrame) -> pd.DataFrame:
 
 def get_btc_4h_change(exchange=None) -> float:
     try:
-        data_btc = _fetch_candles("BTC-USDT", "4H", 5)
+        # Без after — берём последние 3 закрытые свечи
+        data_btc = _fetch_candles("BTC-USDT", "4H", 3)
         ohlcv = [[int(d[0]), float(d[1]), float(d[2]), float(d[3]), float(d[4]), float(d[5])] for d in data_btc] if data_btc else []
-        if not ohlcv or len(ohlcv) < 2:
+        # Фильтруем только закрытые свечи (Confirm=1)
+        closed = [d for d in data_btc if str(d[8]) == "1"] if data_btc else []
+        if len(closed) >= 2:
+            c1 = float(closed[0][4])   # последняя закрытая
+            c2 = float(closed[1][4])   # предпоследняя закрытая
+        elif len(ohlcv) >= 2:
+            c1 = float(ohlcv[-1][4])
+            c2 = float(ohlcv[-2][4])
+        else:
+            logger.warning("[Signal] BTC: мало данных")
             return 0.0
-        return (float(ohlcv[-1][4]) - float(ohlcv[-2][4])) / float(ohlcv[-2][4]) * 100
+        change = (c1 - c2) / c2 * 100
+        logger.info(f"[Signal] BTC 4H change: {change:+.2f}%")
+        return change
     except Exception as e:
         logger.warning(f"[Signal] BTC: {e}")
         return 0.0
@@ -966,9 +978,9 @@ def get_live_signal(symbol: str = "TON/USDT") -> dict | None:
 
         btc_change  = 0.0
         btc_blocked = False
-        if BTC_FILTER_ENABLED and signal == "BUY":
+        if BTC_FILTER_ENABLED:
             btc_change = get_btc_4h_change()
-            if btc_change < BTC_CORRELATION_THRESH:
+            if signal == "BUY" and btc_change < BTC_CORRELATION_THRESH:
                 filter_log.append(f"BTC_4H={btc_change:+.2f}%")
                 signal      = "HOLD"
                 btc_blocked = True

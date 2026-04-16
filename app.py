@@ -95,6 +95,21 @@ def run_health_server():
 # ═══════════════════════════════════════════
 # ТОРГОВЫЙ ЦИКЛ
 # ═══════════════════════════════════════════
+def _run_with_timeout(func, timeout=120, default=None):
+    """Запускает функцию в отдельном треде с таймаутом."""
+    import concurrent.futures
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        future = ex.submit(func)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            logger.error(f"[Watchdog] TIMEOUT {timeout}s: {func.__name__}")
+            return default
+        except Exception as e:
+            logger.error(f"[Watchdog] ERROR in {func.__name__}: {e}", exc_info=True)
+            return default
+
+
 def trading_loop():
     global _last_trade_time
     logger.info(f"🚀 Торговый цикл v8.0 запущен | {SYMBOL}")
@@ -137,7 +152,7 @@ def trading_loop():
                 continue
 
             # Сигнал
-            signal_data = get_live_signal()
+            signal_data = _run_with_timeout(get_live_signal, timeout=90, default=None)
             if not signal_data:
                 logger.warning("⚠️ Сигнал не получен")
                 time.sleep(60)
