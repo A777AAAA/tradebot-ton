@@ -34,7 +34,7 @@ from sklearn.metrics import (
     accuracy_score, precision_score,
     recall_score, f1_score, roc_auc_score,
 )
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, RidgeClassifierCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.model_selection import TimeSeriesSplit
@@ -50,6 +50,11 @@ try:
     LGBM_AVAILABLE = True
 except ImportError:
     LGBM_AVAILABLE = False
+try:
+    from catboost import CatBoostClassifier
+    CATBOOST_AVAILABLE = True
+except ImportError:
+    CATBOOST_AVAILABLE = False
 
 from config import (
     MODEL_PATH_BUY_XGB, MODEL_PATH_BUY_LGBM,
@@ -715,11 +720,35 @@ def calibrate_model(model, X_train: np.ndarray, y_train: np.ndarray,
 # ─────────────────────────────────────────────
 # STACKING АНСАМБЛЬ
 # ─────────────────────────────────────────────
+
+def train_binary_cat(X_train, y_train, X_test, y_test) -> tuple:
+    if not CATBOOST_AVAILABLE:
+        return None, {}
+    try:
+        model = CatBoostClassifier(
+            iterations=500, learning_rate=0.05, depth=6,
+            loss_function='Logloss', eval_metric='AUC',
+            random_seed=42, verbose=0
+        )
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        y_prob = model.predict_proba(X_test)[:,1]
+        metrics = {
+            'precision': precision_score(y_test, y_pred, zero_division=0),
+            'recall':    recall_score(y_test, y_pred, zero_division=0),
+            'roc_auc':   roc_auc_score(y_test, y_prob) if len(set(y_test))>1 else 0.5,
+        }
+        return model, metrics
+    except Exception as e:
+        logger.warning(f"[Trainer] CatBoost failed: {e}")
+        return None, {}
+
 def train_stacking_ensemble(
     model_xgb, model_lgbm,
     X_train: np.ndarray, y_train: np.ndarray,
     X_test: np.ndarray, y_test: np.ndarray,
-    label: str = "BUY"
+    label: str = "BUY",
+    model_cat=None
 ) -> tuple:
     """
     Stacking: XGB + LGBM → LogisticRegression (meta-learner).
@@ -1156,12 +1185,12 @@ def train_model() -> dict:
     # 12. STACKING
     logger.info("[Trainer] 🏗️ Stacking BUY...")
     stack_buy, stack_buy_m = train_stacking_ensemble(
-        buy_xgb, buy_lgbm, X_buy_train, y_buy_train, X_buy_test, y_buy_test, "BUY"
+        buy_xgb, buy_lgbm, X_buy_train, y_buy_train, X_buy_test, y_buy_test, "BUY", model_cat=buy_cat
     )
 
     logger.info("[Trainer] 🏗️ Stacking SELL...")
     stack_sell, stack_sell_m = train_stacking_ensemble(
-        sell_xgb, sell_lgbm, X_sell_train, y_sell_train, X_sell_test, y_sell_test, "SELL"
+        sell_xgb, sell_lgbm, X_sell_train, y_sell_train, X_sell_test, y_sell_test, "SELL", model_cat=sell_cat
     )
 
     # 13. META-LABELING
