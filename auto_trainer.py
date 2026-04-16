@@ -437,6 +437,13 @@ def triple_barrier_labels(df: pd.DataFrame,
     df = df.copy()
     df['Target_BUY']  = target_buy
     df['Target_SELL'] = target_sell
+    # HOLD: боковик — цена не вышла ни за TP ни за SL
+    target_hold = np.where(
+        np.isnan(target_buy) & np.isnan(target_sell), 1,
+        np.where((target_buy == 0) & (target_sell == 0), 1, 0)
+    ).astype(float)
+    target_hold[n - horizon:] = np.nan
+    df['Target_HOLD'] = target_hold
 
     total     = n - horizon
     buy_valid = int(np.sum(~np.isnan(target_buy[:total])))
@@ -1181,6 +1188,12 @@ def train_model() -> dict:
             X_buy_train, X_buy_test = X_bp_train, X_bp_test
             X_sell_train, X_sell_test = X_sp_train, X_sp_test
             logger.info(f"[Trainer] ✅ Pruned модель лучше, используем {len(feature_cols)} признаков")
+
+    # 11.5 CatBoost (для stacking)
+    logger.info("[Trainer] 🔧 CatBoost BUY...")
+    buy_cat,  buy_cat_m  = train_binary_cat(X_buy_sm,  y_buy_sm,  X_buy_test,  y_buy_test)
+    logger.info("[Trainer] 🔧 CatBoost SELL...")
+    sell_cat, sell_cat_m = train_binary_cat(X_sell_sm, y_sell_sm, X_sell_test, y_sell_test)
 
     # 12. STACKING
     logger.info("[Trainer] 🏗️ Stacking BUY...")

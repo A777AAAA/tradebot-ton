@@ -897,6 +897,10 @@ def get_live_signal(symbol: str = "TON/USDT") -> dict | None:
             "STACK" if has_stack and not has_calib else "",
         ]))
 
+        # 4.8 HOLD вероятность
+        p_hold = round(float(1.0 - min(p_buy + p_sell, 1.0)), 4)
+        p_hold = max(p_hold, 0.0)
+
         # 5. v8.0 Regime-Switching: адаптивный порог
         adx_1h    = float(last_1h.get('ADX',       25.0))
         atr_ratio = float(last_1h.get('ATR_ratio',  1.0))
@@ -1029,6 +1033,7 @@ def get_live_signal(symbol: str = "TON/USDT") -> dict | None:
             "p_sell_lgbm":   round(p_sell_lgbm, 4),
             "p_buy_cal":     round(p_buy_cal,   4),  # v8.0
             "p_sell_cal":    round(p_sell_cal,  4),  # v8.0
+            "p_hold":        round(p_hold,      4),  # v8.3
 
             # Layer 2: мета-модель
             "p_meta":        round(p_meta, 4) if p_meta is not None else None,
