@@ -101,6 +101,32 @@ def fetch_ohlcv(symbol: str = "TON-USDT", bar: str = "1H", bars: int = 8000) -> 
         logger.error(f"[Trainer] Ошибка загрузки {bar}: {e}")
         return pd.DataFrame()
 
+def fetch_funding_history(symbol: str = "TON-USDT-SWAP", limit: int = 100) -> "pd.DataFrame":
+    try:
+        import requests as _req
+        url = f"https://www.okx.com/api/v5/public/funding-rate-history?instId={symbol}&limit=100"
+        r = _req.get(url, timeout=10)
+        data = r.json().get("data", [])
+        if not data:
+            return pd.DataFrame()
+        rows = []
+        for d in data:
+            ts = int(d.get("fundingTime", 0))
+            fr = float(d.get("fundingRate", 0.0))
+            rows.append({"ts": ts, "Funding_rate": fr})
+        df = pd.DataFrame(rows)
+        df["ts"] = pd.to_datetime(df["ts"], unit="ms")
+        df.set_index("ts", inplace=True)
+        df.sort_index(inplace=True)
+        df = df.resample("1h").ffill()
+        logger.info(f"[Trainer] Funding Rate: {len(df)} записей")
+        return df
+    except Exception as e:
+        logger.warning(f"[Trainer] Funding недоступен: {e}")
+        return pd.DataFrame()
+
+
+
 
 # ─────────────────────────────────────────────
 # ПРОФЕССИОНАЛЬНЫЕ ПРИЗНАКИ
@@ -295,6 +321,18 @@ def calc_indicators_1h(df: pd.DataFrame) -> pd.DataFrame:
     d['OFI'] = calc_order_flow_imbalance(d)
 
     d['Price_accel'] = close.pct_change(1) - close.pct_change(1).shift(1)
+    try:
+        fund_df = fetch_funding_history()
+        if not fund_df.empty:
+            d["Funding_rate"] = fund_df["Funding_rate"].reindex(d.index, method="ffill").fillna(0.0)
+            d["Funding_bias"] = d["Funding_rate"].apply(lambda x: 1.0 if x > 0.0001 else (-1.0 if x < -0.0001 else 0.0))
+        else:
+            d["Funding_rate"] = 0.0
+            d["Funding_bias"] = 0.0
+    except Exception:
+        d["Funding_rate"] = 0.0
+        d["Funding_bias"] = 0.0
+
 
     log_ret = np.log(close / close.shift(1))
     d['Vol_cluster'] = (log_ret**2).ewm(span=5).mean() / ((log_ret**2).ewm(span=20).mean() + 1e-9)
