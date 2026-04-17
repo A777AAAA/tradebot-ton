@@ -318,7 +318,10 @@ def calc_indicators_1h(df: pd.DataFrame) -> pd.DataFrame:
     d['RV_50']    = rv['RV_50']
     d['RV_ratio'] = rv['RV_ratio']
 
-    d['OFI'] = calc_order_flow_imbalance(d)
+    d['OFI']       = calc_order_flow_imbalance(d)
+    d['OFI_5']     = (d['OFI'] * d['Volume']).rolling(5).sum()  / (d['Volume'].rolling(5).sum()  + 1e-9)
+    d['OFI_20']    = (d['OFI'] * d['Volume']).rolling(20).sum() / (d['Volume'].rolling(20).sum() + 1e-9)
+    d['OFI_ratio'] = d['OFI_5'] / (d['OFI_20'].abs() + 1e-9)
 
     d['Price_accel'] = close.pct_change(1) - close.pct_change(1).shift(1)
     try:
@@ -1097,7 +1100,7 @@ def get_available_features(df: pd.DataFrame, desired: list) -> list:
 
 FEATURE_COLS_V7_EXTRA = [
     'Hurst', 'VWAP_dev_20', 'VWAP_dev_50', 'VWAP_bull_ratio',
-    'RV_20', 'RV_50', 'RV_ratio', 'OFI', 'Price_accel', 'Vol_cluster',
+    'RV_20', 'RV_50', 'RV_ratio', 'OFI', 'OFI_5', 'OFI_20', 'OFI_ratio', 'Price_accel', 'Vol_cluster',
     'Hurst_4h',
 ]
 
