@@ -39,10 +39,7 @@ from paper_trader       import (
 from backtest_engine    import run_backtest, format_backtest_message
 
 try:
-    from signal_logger import (
-        log_signal, check_outcomes,
-        format_outcome_message, get_stats_message, daily_report_message
-    )
+    from signal_logger import log_signal, get_signal_stats
     SIGNAL_LOGGER_OK = True
 except ImportError:
     SIGNAL_LOGGER_OK = False
@@ -214,9 +211,7 @@ def trading_loop():
 
             # ── Логируем сигнал ──
             if signal in ("BUY", "SELL") and SIGNAL_LOGGER_OK:
-                log_signal(signal, price, SYMBOL, confidence, {
-                    "p_buy": p_buy, "p_sell": p_sell, "models_used": models
-                })
+                log_signal(SYMBOL, signal, price, confidence, p_buy, p_sell)
 
             if signal in ("BUY", "SELL") and confidence >= MIN_CONFIDENCE:
                 sent = {}
