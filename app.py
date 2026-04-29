@@ -117,10 +117,8 @@ def outcome_checker_loop():
     time.sleep(300)
     while True:
         try:
-            results = check_outcomes(_get_ton_price)
-            for r in results:
-                send_message(format_outcome_message(r))
-                logger.info(f"[SignalLogger] {r['signal']} {r['outcome']} P&L={r['pnl_pct']:+.2f}%")
+            results = check_pending_signals()
+            logger.info(f"[SignalLogger] closed {len(results)} pending signals")
         except Exception as e:
             logger.error(f"[OutcomeChecker] {e}")
         time.sleep(30 * 60)
