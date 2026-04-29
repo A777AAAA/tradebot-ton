@@ -39,7 +39,7 @@ from paper_trader       import (
 from backtest_engine    import run_backtest, format_backtest_message
 
 try:
-    from signal_logger import log_signal, get_signal_stats
+    from signal_logger import log_signal, get_signal_stats, check_pending_signals, format_signal_stats_message
     SIGNAL_LOGGER_OK = True
 except ImportError:
     SIGNAL_LOGGER_OK = False
@@ -362,7 +362,8 @@ def stats_loop():
             stats = get_stats()
             send_message(format_stats_message(stats))
             if SIGNAL_LOGGER_OK:
-                send_message(daily_report_message())
+                stats_sl = get_signal_stats()
+                send_message(format_signal_stats_message(stats_sl))
         except Exception as e:
             logger.error(f"[Stats] Ошибка: {e}")
         time.sleep(24 * 60 * 60)
